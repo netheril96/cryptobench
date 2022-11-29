@@ -34,11 +34,50 @@ namespace
             return result;
         }
     };
+
+    class OpenSSLBench
+    {
+    private:
+        EVP_CIPHER_CTX *ctx = nullptr;
+        std::vector<unsigned char> output;
+
+    public:
+        OpenSSLBench()
+        {
+            ctx = EVP_CIPHER_CTX_new();
+            if (!ctx)
+            {
+                abort();
+            }
+            EVP_CipherInit_ex(ctx, EVP_aes_128_gcm(), nullptr, KEY, IV, 1);
+        }
+        ~OpenSSLBench()
+        {
+            EVP_CIPHER_CTX_free(ctx);
+        }
+        OpenSSLBench(OpenSSLBench &&) = delete;
+
+        unsigned encrypt_sum(const std::vector<unsigned char> &input)
+        {
+            output.resize(input.size() + 16);
+            int outlen = input.size();
+            EVP_CipherUpdate(ctx, output.data(), &outlen, input.data(), input.size());
+            EVP_CipherFinal(ctx, output.data() + outlen, &outlen);
+            EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, output.data() + input.size());
+            unsigned result = 0;
+            for (auto c : output)
+            {
+                result += c;
+            }
+            return result;
+        }
+    };
 }
 
 int main()
 {
     std::vector<unsigned char> input(1 << 30, 233);
     printf("Sum %u\n", CryptoppBench().encrypt_sum(input));
+    printf("Sum %u\n", OpenSSLBench().encrypt_sum(input));
     return 0;
 }
